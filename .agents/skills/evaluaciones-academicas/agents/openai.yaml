@@ -1,0 +1,6 @@
+interface:
+  display_name: "Evaluaciones académicas"
+  short_description: "Intentos, integridad académica y auditoría"
+  default_prompt: "Usa $evaluaciones-academicas para revisar las reglas y pruebas del cambio académico solicitado."
+policy:
+  allow_implicit_invocation: true

@@ -1,0 +1,110 @@
+name: escuelagestion
+
+x-db-image: &db-image postgres:18-bookworm@sha256:afc7e2d441324c0388fa80c3d24f733b4194a4eb7f47dd8ee2b08eb1a24a647c
+x-backend-environment: &backend-environment
+  APP_ENV: ${APP_ENV:-development}
+  POSTGRES_HOST: db
+  POSTGRES_PORT: "5432"
+  POSTGRES_DB: ${POSTGRES_DB:-evaluacion}
+  POSTGRES_USER: ${POSTGRES_USER:-evaluacion}
+  POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Define POSTGRES_PASSWORD en .env}
+
+services:
+  db:
+    image: *db-image
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-evaluacion}
+      POSTGRES_USER: ${POSTGRES_USER:-evaluacion}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Define POSTGRES_PASSWORD en .env}
+    volumes:
+      - postgres_data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+
+  migrate:
+    build:
+      context: ./backend
+      target: runtime
+    environment:
+      <<: *backend-environment
+      RUNTIME_DB_PASSWORD: ${RUNTIME_DB_PASSWORD:?Define RUNTIME_DB_PASSWORD en .env}
+    command: ["python", "-m", "app.manage", "migrate"]
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: "no"
+
+  backend:
+    build:
+      context: ./backend
+      target: runtime
+    environment:
+      <<: *backend-environment
+      POSTGRES_USER: evaluacion_app
+      POSTGRES_PASSWORD: ${RUNTIME_DB_PASSWORD:?Define RUNTIME_DB_PASSWORD en .env}
+      ALLOWED_ORIGINS: '["http://localhost:${FRONTEND_PORT:-3000}","http://127.0.0.1:${FRONTEND_PORT:-3000}"]'
+    ports:
+      - "127.0.0.1:${BACKEND_PORT:-8000}:8000"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/v1/health/ready', timeout=5)"]
+      interval: 10s
+      timeout: 6s
+      retries: 10
+    init: true
+    restart: unless-stopped
+    security_opt: ["no-new-privileges:true"]
+
+  frontend:
+    build: ./frontend
+    environment:
+      API_INTERNAL_URL: http://backend:8000
+    ports:
+      - "127.0.0.1:${FRONTEND_PORT:-3000}:3000"
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    init: true
+    restart: unless-stopped
+    security_opt: ["no-new-privileges:true"]
+
+  db-test:
+    profiles: ["test"]
+    image: *db-image
+    environment:
+      POSTGRES_DB: evaluacion_test
+      POSTGRES_USER: test_runner
+      # Credencial ficticia para contenedor efímero sin puertos publicados.
+      POSTGRES_PASSWORD: test-only-not-a-secret
+    tmpfs:
+      - /var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U test_runner -d evaluacion_test"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  backend-test:
+    profiles: ["test"]
+    build:
+      context: ./backend
+      target: test
+    environment:
+      TEST_DATABASE_URL: postgresql+psycopg://test_runner:test-only-not-a-secret@db-test:5432/evaluacion_test
+    depends_on:
+      db-test:
+        condition: service_healthy
+
+volumes:
+  postgres_data:

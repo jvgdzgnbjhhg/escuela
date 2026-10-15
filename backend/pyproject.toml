@@ -1,0 +1,33 @@
+[project]
+name = "evaluacion-academica-api"
+version = "0.1.0"
+description = "API de la plataforma de evaluación académica"
+requires-python = ">=3.13,<3.14"
+dependencies = [
+  "fastapi==0.143.1",
+  "uvicorn==0.54.0",
+  "sqlalchemy==2.1.4",
+  "alembic==1.20.0",
+  "psycopg[binary]==3.3.6",
+  "pydantic-settings==2.16.0",
+  "argon2-cffi==25.1.0",
+  "email-validator==2.3.0",
+]
+
+[dependency-groups]
+dev = ["pytest==9.1.1", "httpx==0.28.1", "ruff==0.17.0"]
+
+[tool.uv]
+package = false
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+markers = ["integration: requiere PostgreSQL real en TEST_DATABASE_URL"]
+
+[tool.ruff]
+target-version = "py313"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]

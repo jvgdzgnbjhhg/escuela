@@ -1,0 +1,40 @@
+# Usar siempre con -p escuelagestion-e2e. No comparte datos con desarrollo.
+services:
+  db:
+    environment:
+      POSTGRES_DB: evaluacion_e2e_test
+      POSTGRES_USER: e2e_owner
+      POSTGRES_PASSWORD: e2e-owner-not-a-secret
+    volumes: !reset []
+    tmpfs:
+      - /var/lib/postgresql
+  migrate:
+    environment:
+      POSTGRES_DB: evaluacion_e2e_test
+      POSTGRES_USER: e2e_owner
+      POSTGRES_PASSWORD: e2e-owner-not-a-secret
+      RUNTIME_DB_PASSWORD: e2e-runtime-not-a-secret
+  backend:
+    environment:
+      APP_ENV: test
+      POSTGRES_DB: evaluacion_e2e_test
+      POSTGRES_USER: evaluacion_app
+      POSTGRES_PASSWORD: e2e-runtime-not-a-secret
+      ALLOWED_ORIGINS: '["http://127.0.0.1:3101","http://localhost:3101"]'
+    ports: !override
+      - "127.0.0.1:8001:8000"
+  frontend:
+    ports: !override
+      - "127.0.0.1:3101:3000"
+  seed-e2e:
+    profiles: ["e2e"]
+    build:
+      context: ./backend
+      target: test
+    environment:
+      TEST_DATABASE_URL: postgresql+psycopg://e2e_owner:e2e-owner-not-a-secret@db:5432/evaluacion_e2e_test
+      PYTHONPATH: /app
+    command: ["python", "tests/seed_e2e.py"]
+    depends_on:
+      migrate:
+        condition: service_completed_successfully

@@ -1,0 +1,6 @@
+interface:
+  display_name: "Sincronización offline"
+  short_description: "IndexedDB, idempotencia y recuperación offline"
+  default_prompt: "Usa $sincronizacion-offline para revisar la cola, los conflictos y la recuperación del cambio solicitado."
+policy:
+  allow_implicit_invocation: true
